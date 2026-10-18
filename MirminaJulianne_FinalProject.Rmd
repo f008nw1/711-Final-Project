@@ -1,0 +1,297 @@
+---
+title: "Mirmina,Julianne_Final_Project"
+output: pdf_document
+date: "2026-10"
+filename: MirminaJulianne_FinalProject
+---
+
+) Data Preparation:
+a) Download the Sample RNA-seq Count Matrix and associated Metadata.
+```{r}
+# Load libraries
+library(tidyverse)
+
+# Read in the data
+setwd("/Users/juliannemirmina/Downloads/711_Course/Final Project")
+counts <- read.csv("counts.csv", row.names = 1, check.names = FALSE)
+meta   <- read.csv("meta_data.csv")
+
+#The Cancer Genome Atlas Network. (2012). Comprehensive molecular portraits of human breast tumours. *Nature*, *490*(7418), 61-70. https://doi.org/10.1038/nature11412
+
+```
+
+2) Gene Selection and Summary Statistics:
+a) Select One Gene: choose a gene from the dataset that interests you.
+```{r}
+# Pull out the TP53 row (Ensembl ID for TP53)
+tp53_row <- counts["ENSG00000141510.18", ]
+
+# Transpose so samples become rows, with a column for TP53 expression
+tp53_df <- data.frame(
+  barcode = colnames(tp53_row),
+  TP53_expression = as.numeric(tp53_row[1, ])
+)
+
+# Merge with metadata using the shared barcode column
+tp53_merged <- merge(tp53_df, meta, by = "barcode")
+
+# Quick check
+tp53_merged %>%
+  select(barcode, TP53_expression, method_of_diagnosis) %>%
+  head(5)
+
+```
+b) Generate Summary Statistics: Using the count data from the selected gene, compute
+and report summary statistics, such as mean, median, standard deviation, minimum, and
+maximum.
+
+```{r}
+# Summary of Stats
+tp53_summarystats <- tp53_merged %>%
+  summarize(
+    min = min(TP53_expression, na.rm = TRUE), 
+    max = max(TP53_expression, na.rm = TRUE),
+    mean = mean(TP53_expression, na.rm = TRUE),
+    median = median(TP53_expression, na.rm = TRUE),
+    sd = sd(TP53_expression, na.rm = TRUE),
+  )
+tp53_summarystats #displays summary table
+```
+3) Visualization:
+a) Create a Histogram: Use ggplot2 to generate a histogram of the count data for the
+selected gene. This visualization should effectively display the distribution of the counts.
+
+```{r}
+library(ggplot2)
+
+p1 <- ggplot(tp53_merged, aes(x = TP53_expression)) + # ggplot2
+  geom_histogram(color = "black", binwidth = 500, fill = "#FF1493") + 
+    labs(x = "TP53 Count", y = "Number of Samples", title = "Distribution of TP53 Gene Expression") 
+# Assigning axis names, title
+
+print(p1) #prints histogram
+
+# Adding log2 transformation for a second histogram
+
+tp53_merged$log2_TP53 <- log2(tp53_merged$TP53_expression + 1)
+
+p2 <- ggplot(tp53_merged, aes(x = log2_TP53)) +
+  geom_histogram(color = "black", fill = "#FF1493", binwidth = 0.5) +
+  labs(x = "log2(TP53 Count + 1)", y = "Number of Samples",
+       title = "Distribution of TP53 Gene Expression (log2 transformed)")
+
+print(p2) #prints histogram
+
+ggsave("/Users/juliannemirmina/Downloads/711_course/Final Project/figures/histogram.png", p2,    width = 6, height = 4, dpi = 300)
+
+p3 <- ggplot(tp53_merged, aes(x = log2_TP53)) +
+  geom_density(fill = "#FF1493", alpha = 0.4) +
+  labs(x = "TP53 expression (log2)", y = "Density",
+       title = "Density of TP53 Gene Expression (log2 transformed)") +
+  theme_bw()
+
+# Save png
+ggsave("/Users/juliannemirmina/Downloads/711_course/Final Project/figures/densityplot.png", p3,    width = 6, height = 4, dpi = 300)
+
+print(p3)
+```
+
+b) Create a Scatter Plot: Select a second gene from the dataset. Create a scatter plot using
+ggplot2 to compare the count data of the two selected genes.
+
+```{r}
+
+# Pull out the CHEK2 row from counts
+chek2_row <- counts["ENSG00000183765.23", ]
+
+# Reshape into a data frame: one row per sample
+chek2_df <- data.frame(
+  barcode = colnames(chek2_row),
+  CHEK2_expression = as.numeric(chek2_row[1, ])
+)
+
+# Merge CHEK2 expression into your existing tp53_merged data frame
+tp53_chek2_merged <- merge(tp53_merged, chek2_df, by = "barcode")
+
+# Create Scatter Plot
+p1 <- ggplot(tp53_chek2_merged, aes(x = TP53_expression, y = CHEK2_expression)) +
+  geom_point(alpha = .9, color = "#FF69B4") +
+  labs(x = "TP53 Count", y = "CHEK2 Count", title = "TP53 vs. CHEK2 Expression")
+
+print(p1)
+
+# Add log2 Scatter Plot
+p2 <- ggplot(tp53_chek2_merged,
+             aes(x = log2(TP53_expression + 1),
+                 y = log2(CHEK2_expression + 1))) +
+  geom_point(alpha = .9, color = "#FF69B4") +
+  labs(x = "log2(TP53 Count + 1)",
+       y = "log2(CHEK2 Count + 1)",
+       title = "TP53 vs. CHEK2 Expression (log2 transformed)")
+
+print(p2)
+
+# Save png
+ggsave("/Users/juliannemirmina/Downloads/711_course/Final Project/figures/scatter.png",   p2, width = 6, height = 4, dpi = 300)
+
+
+# log2-transformed values so both tests use identical inputs
+x <- log2(tp53_chek2_merged$TP53_expression + 1)
+y <- log2(tp53_chek2_merged$CHEK2_expression + 1)
+
+# Pearson: tests for a linear relationship using the actual values
+# Output: cor (r, -1 to +1), p-value, and 95% confidence interval
+cor.test(x, y, method = "pearson")
+
+# Spearman: tests for a monotonic relationship using ranks
+# Output: rho (-1 to +1) and p-value (no confidence interval)
+cor.test(x, y, method = "spearman", exact = FALSE) 
+# exact = FALSE avoids the "cannot compute exact p-value with ties" warning
+
+#Citation: Portions of this code (question 3) were developed with assistance from Claude (Anthropic, 2026), an AI language model, accessed at https://claude.ai. Code was reviewed, tested, and adapted by Julianne Mirmina to meet assignment requirements.
+
+```
+c) Create a Violin Plot: Select one covariate from your metadata. Using the count data from the first gene and the selected covariate, generate a violin plot that illustrates the distribution of count data based on the covariate. For example, if you choose “primary_diagnosis”, your plot should display a violin plot for each level in “primary_diagnosis”.
+
+```{r}
+# Create Violin Plot
+p <- ggplot(tp53_merged, aes(x = method_of_diagnosis, y = TP53_expression, fill = method_of_diagnosis)) +
+  geom_violin(trim = FALSE) +
+  labs(x = "Method of Diagnosis", y = "TP53 Raw Count",
+       title = "Distribution of TP53 Expression by Method of Diagnosis",
+       fill = "Method of Diagnosis") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Avoid overlapping labels
+print(p)
+
+# Save png
+ggsave("/Users/juliannemirmina/Downloads/711_course/Final Project/figures/violinplot.png",   p,     width = 7, height = 5, dpi = 300)
+
+```
+
+d) Heatmap Analysis:
+i) Select 10 genes: Choose a set of 10 different genes from the count matrix for your
+heatmap.
+ii) Generate a Heatmap: Use the ComplexHeatmap package in R to create a heatmap
+of the count data for the selected genes.
+iii) Add an Annotation Bar: Include an annotation bar reflecting your chosen covariate
+for further context and interpretation of the data.
+
+```{r}
+# Load heatmap libraries
+suppressPackageStartupMessages({
+  library(ComplexHeatmap)
+  library(circlize)  # for color mapping
+})
+
+# 10 selected genes (Ensembl IDs matching your counts.csv)
+selected_genes <- c(
+  "ENSG00000141510.18",  # TP53
+  "ENSG00000183765.23",  # CHEK2
+  "ENSG00000012048.23",  # BRCA1
+  "ENSG00000139618.16",  # BRCA2
+  "ENSG00000091831.24",  # ESR1
+  "ENSG00000082175.15",  # PGR
+  "ENSG00000141736.14",  # ERBB2
+  "ENSG00000148773.14",  # MKI67
+  "ENSG00000146648.19",  # EGFR
+  "ENSG00000171862.11"   # PTEN
+)
+
+gene_labels <- c("TP53", "CHEK2", "BRCA1", "BRCA2", "ESR1", 
+                  "PGR", "ERBB2", "MKI67", "EGFR", "PTEN")
+
+# Subset counts matrix to just these 10 genes (rows = genes, columns = samples)
+heatmap_counts <- as.matrix(counts[selected_genes, ])
+rownames(heatmap_counts) <- gene_labels
+
+# Match sample order between the matrix and the metadata
+meta_ordered <- meta[match(colnames(heatmap_counts), meta$barcode), ]
+
+# Clean up the covariate: literal "NA" strings translate to RStudio 
+meta_ordered$method_of_diagnosis[meta_ordered$method_of_diagnosis %in% c("NA", "")] <- NA
+
+# log2 transform for heavily skewed data 
+log_counts <- log2(heatmap_counts + 1)
+
+
+# Heatmap annotations
+method_colors <- c(  
+  "Core Biopsy"              = "#1B9E77",
+  "Surgical Resection"       = "#D95F02",
+  "Fine Needle Aspiration"   = "#7570B3",
+  "Excisional Biopsy"        = "#E7298A",
+  "Cytology"                 = "#66A61E",
+  "Biopsy"                   = "#E6AB02",
+  "Incisional Biopsy"        = "#A6761D",
+  "Ultrasound Guided Biopsy" = "#666666",
+  "Unknown"                  = "grey70"
+)
+column_ha <- HeatmapAnnotation(
+  Method_of_Diagnosis = meta_ordered$method_of_diagnosis,
+  col = list(
+    Method_of_Diagnosis = method_colors),
+    na_col = "gray85"
+  )
+
+# Create a pink gradient color mapping
+log_colors <- colorRamp2(
+  c(min(log_counts), mean(range(log_counts)), max(log_counts)),
+  c("#FFF0F5", "#FF69B4", "#8B004F")
+)
+
+# Create heatmap
+ht <- Heatmap(
+  log_counts,  
+  name = "log2(Counts + 1)",
+  col = log_colors,
+  top_annotation = column_ha,
+  show_row_names = TRUE,
+  show_column_names = FALSE,
+  cluster_columns = TRUE,
+  show_column_dend = FALSE,
+  cluster_rows = TRUE,
+  column_title = "Samples",
+  row_title = "Genes",
+  row_names_gp = gpar(fontsize = 8),
+  heatmap_legend_param = list(title = "log2(Counts + 1)")
+)
+
+draw(ht)
+
+# Save png
+png("/Users/juliannemirmina/Downloads/711_course/Final Project/figures/heatmap.png",
+    width = 7, height = 5, units = "in", res = 300)
+draw(ht)      
+dev.off()
+
+```
+
+```{r}
+
+# Summary Stats
+method_stats <- tp53_merged %>%
+  group_by(method_of_diagnosis) %>% # Split the data into one group per diagnosis method
+  summarize(
+    n      = n(),
+    min    = min(TP53_expression, na.rm = TRUE),
+    max    = max(TP53_expression, na.rm = TRUE),
+    mean   = mean(TP53_expression, na.rm = TRUE),
+    median = median(TP53_expression, na.rm = TRUE),
+    sd     = sd(TP53_expression, na.rm = TRUE)
+  )
+method_stats # Display the summary table
+
+# Summary of Stats Age of Diagnosis  
+age_stats <- tp53_merged %>%
+  mutate(age_years = as.numeric(age_at_diagnosis) / 365.25) %>%
+  summarize(
+    n      = sum(!is.na(age_years)),  # Number of samples with a recorded age
+    missing = sum(is.na(age_years)), # Number of samples with missing age
+    min    = round(min(age_years, na.rm = TRUE), 1),
+    max    = round(max(age_years, na.rm = TRUE), 1),
+    mean   = round(mean(age_years, na.rm = TRUE), 1),
+    median = round(median(age_years, na.rm = TRUE), 1),
+    sd     = round(sd(age_years, na.rm = TRUE), 1)
+  )
+age_stats # Display the summary table
+```
